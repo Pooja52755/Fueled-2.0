@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { AlertContext } from '../../context/AlertContext';
+import MfaVerification from './MfaVerification';
 import {
   Box,
   Container,
@@ -12,14 +13,15 @@ import {
   Grid,
   InputAdornment,
   IconButton,
-  CircularProgress
+  CircularProgress,
+  Divider
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { Visibility, VisibilityOff, LockOutlined } from '@mui/icons-material';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, isAuthenticated, loading, error } = useContext(AuthContext);
-  const { error: showError } = useContext(AlertContext);
+  const { login, isAuthenticated, loading, error, requireMfa, tempEmail } = useContext(AuthContext);
+  const { error: showError, success: showSuccess } = useContext(AlertContext);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -76,13 +78,34 @@ const Login = () => {
     
     if (validateForm()) {
       setIsSubmitting(true);
-      await login(email, password);
+      console.log('Attempting login with:', { email });
+      
+      const result = await login(email, password);
+      console.log('Login result:', result);
+      
+      if (result.requireMfa) {
+        // Instead of showing the MFA component inline, redirect to the MFA verification page
+        showSuccess('Please enter your MFA verification code');
+        navigate('/mfa/verify');
+      } else if (result.success) {
+        showSuccess('Login successful');
+        
+        // Force navigation to dashboard
+        console.log('Login successful, navigating to dashboard');
+        setTimeout(() => {
+          navigate('/');
+        }, 500);
+      }
+      
+      setIsSubmitting(false);
     }
   };
   
   const toggleShowPassword = () => {
     setShowPassword(!showPassword);
   };
+  
+  // MFA verification is now handled on a separate page
   
   return (
     <Container component="main" maxWidth="xs">
@@ -104,12 +127,16 @@ const Login = () => {
             width: '100%',
           }}
         >
-          <Typography component="h1" variant="h5" sx={{ mb: 3 }}>
-            Wealth Map Login
-          </Typography>
+          <Box sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+            <LockOutlined sx={{ fontSize: 30, mr: 1, color: 'primary.main' }} />
+            <Typography component="h1" variant="h5">
+              Sign In
+            </Typography>
+          </Box>
           
-          <Box component="form" onSubmit={onSubmit} noValidate sx={{ mt: 1, width: '100%' }}>
+          <Box component="form" onSubmit={onSubmit} sx={{ mt: 1, width: '100%' }}>
             <TextField
+              variant="outlined"
               margin="normal"
               required
               fullWidth
@@ -126,6 +153,7 @@ const Login = () => {
             />
             
             <TextField
+              variant="outlined"
               margin="normal"
               required
               fullWidth
@@ -158,11 +186,14 @@ const Login = () => {
               type="submit"
               fullWidth
               variant="contained"
+              color="primary"
               sx={{ mt: 3, mb: 2 }}
-              disabled={isSubmitting || loading}
+              disabled={isSubmitting}
             >
-              {isSubmitting || loading ? <CircularProgress size={24} /> : 'Sign In'}
+              {isSubmitting ? <CircularProgress size={24} /> : 'Sign In'}
             </Button>
+            
+            <Divider sx={{ my: 2 }} />
             
             <Grid container>
               <Grid item xs>
@@ -175,7 +206,7 @@ const Login = () => {
               <Grid item>
                 <Link to="/register" style={{ textDecoration: 'none' }}>
                   <Typography variant="body2" color="primary">
-                    {"Don't have an account? Register"}
+                    Don't have an account? Sign Up
                   </Typography>
                 </Link>
               </Grid>

@@ -26,10 +26,16 @@ const PrivateRoute = ({ children }) => {
     return <Navigate to="/login" />;
   }
 
-  // Redirect to onboarding if not completed
-  if (user && !user.completedOnboarding) {
-    return <Navigate to="/onboarding" />;
-  }
+  // Disable onboarding redirect as per user request
+  // We'll go directly to the dashboard instead
+  // if (user && user.completedOnboarding === false) {
+  //   console.log('User has not completed onboarding, redirecting...');
+  //   return <Navigate to="/onboarding" />;
+  // }
+  console.log('Skipping onboarding check as requested');
+  
+  // Log for debugging
+  console.log('PrivateRoute rendering protected content');
 
   // Render the protected component
   return children;

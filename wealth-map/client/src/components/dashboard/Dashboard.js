@@ -38,10 +38,11 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);
-  const { error: showError } = useContext(AlertContext);
+  const { user, isAuthenticated, loading: authLoading } = useContext(AuthContext);
+  const { error: showError, success: showSuccess } = useContext(AlertContext);
   
   const [loading, setLoading] = useState(true);
+  const [dashboardLoaded, setDashboardLoaded] = useState(false);
   const [stats, setStats] = useState({
     propertyCount: 0,
     ownerCount: 0,
@@ -51,9 +52,24 @@ const Dashboard = () => {
     wealthTierDistribution: []
   });
   
+  // Log authentication state for debugging
+  useEffect(() => {
+    console.log('Dashboard component - Auth state:', { isAuthenticated, user, authLoading });
+    
+    if (isAuthenticated && user) {
+      showSuccess(`Welcome back, ${user.firstName || 'User'}!`);
+    }
+  }, [isAuthenticated, user, authLoading]);
+  
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
+        // Don't fetch data if not authenticated or already loaded
+        if (!isAuthenticated || dashboardLoaded) {
+          return;
+        }
+        
+        console.log('Fetching dashboard data...');
         setLoading(true);
         
         // In a real implementation, these would be actual API calls
@@ -114,6 +130,8 @@ const Dashboard = () => {
         };
         
         setStats(mockData);
+        setDashboardLoaded(true);
+        console.log('Dashboard data loaded successfully');
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         showError('Failed to load dashboard data');
@@ -123,7 +141,12 @@ const Dashboard = () => {
     };
     
     fetchDashboardData();
-  }, [showError]);
+    
+    // Cleanup function
+    return () => {
+      console.log('Dashboard component unmounting');
+    };
+  }, [isAuthenticated, dashboardLoaded, showError, showSuccess]);
   
   // Prepare chart data for property type distribution
   const propertyTypeChartData = {

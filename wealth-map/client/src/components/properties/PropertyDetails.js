@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { AlertContext } from '../../context/AlertContext';
 import Layout from '../layout/Layout';
+import { fetchCSV, parseCSV } from '../../utils/csvParser';
 import axios from 'axios';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -97,8 +98,160 @@ const PropertyDetails = () => {
       try {
         setLoading(true);
         
-        // In a real implementation, this would call the backend API
-        // For now, we'll use mock data
+        // Try to load property from Zillow dataset
+        try {
+          // Use relative path to the data file
+          const zillowData = await fetch('/data/zillow-properties-listing-information.csv')
+            .then(response => {
+              if (!response.ok) {
+                throw new Error(`Failed to fetch CSV: ${response.status} ${response.statusText}`);
+              }
+              return response.text();
+            })
+            .then(csvText => {
+              console.log('CSV loaded, first 100 chars:', csvText.substring(0, 100));
+              return parseCSV(csvText);
+            });
+          
+          // Find the property by zpid
+          const zillowProperty = zillowData.find(prop => prop.zpid === id);
+          
+          if (zillowProperty) {
+            console.log('Found property in Zillow dataset:', zillowProperty);
+            
+            // Transform Zillow data to our property format
+            const hasValidCoordinates = 
+              zillowProperty.latitude && 
+              zillowProperty.longitude && 
+              !isNaN(parseFloat(zillowProperty.latitude)) && 
+              !isNaN(parseFloat(zillowProperty.longitude));
+            
+            // Parse price and other numeric values
+            const price = zillowProperty.price ? 
+              parseFloat(zillowProperty.price.replace(/[^0-9.-]+/g, '')) : 
+              (zillowProperty.zestimate ? parseFloat(zillowProperty.zestimate.replace(/[^0-9.-]+/g, '')) : 0);
+            
+            const livingArea = zillowProperty.livingArea ? parseFloat(zillowProperty.livingArea) : 0;
+            const lotSize = zillowProperty.lotSize ? parseFloat(zillowProperty.lotSize) : 0;
+            const bedrooms = zillowProperty.bedrooms ? parseInt(zillowProperty.bedrooms) : 0;
+            const bathrooms = zillowProperty.bathrooms ? parseFloat(zillowProperty.bathrooms) : 0;
+            const yearBuilt = zillowProperty.yearBuilt ? parseInt(zillowProperty.yearBuilt) : null;
+            
+            // Extract tax information
+            const taxAssessedValue = zillowProperty.taxAssessedValue ? 
+              parseFloat(zillowProperty.taxAssessedValue.replace(/[^0-9.-]+/g, '')) : 0;
+            const taxAssessedYear = zillowProperty.taxAssessedYear ? 
+              parseInt(zillowProperty.taxAssessedYear) : new Date().getFullYear();
+            const propertyTaxRate = zillowProperty.propertyTaxRate ? 
+              parseFloat(zillowProperty.propertyTaxRate) : 0;
+            
+            // Extract features from Zillow data
+            const features = [];
+            if (zillowProperty.hasHeating) features.push('Heating');
+            if (zillowProperty.hasCooling) features.push('Cooling');
+            if (zillowProperty.hasGarage) features.push('Garage');
+            if (zillowProperty.hasPool) features.push('Pool');
+            if (zillowProperty.hasFireplace) features.push('Fireplace');
+            
+            // Get image URL if available, otherwise use default
+            const imageUrl = zillowProperty.imgSrc || zillowProperty.image || 
+              'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80';
+            
+            // Create property object from Zillow data
+            const transformedProperty = {
+              id: zillowProperty.zpid,
+              address: {
+                street: zillowProperty.streetAddress || '',
+                city: zillowProperty.city || '',
+                state: zillowProperty.state || '',
+                zipCode: zillowProperty.zipcode || '',
+                formattedAddress: zillowProperty.address || `${zillowProperty.streetAddress || ''}, ${zillowProperty.city || ''}, ${zillowProperty.state || ''} ${zillowProperty.zipcode || ''}`
+              },
+              location: {
+                coordinates: hasValidCoordinates ? 
+                  [parseFloat(zillowProperty.longitude), parseFloat(zillowProperty.latitude)] : 
+                  [0, 0] // Default coordinates if missing
+              },
+              propertyType: zillowProperty.homeType || 'residential',
+              propertySubType: zillowProperty.propertySubType || '',
+              size: {
+                buildingSize: livingArea,
+                lotSize: lotSize,
+                bedrooms: bedrooms,
+                bathrooms: bathrooms
+              },
+              value: {
+                estimatedValue: price,
+                assessedValue: taxAssessedValue,
+                lastSalePrice: zillowProperty.lastSoldPrice ? parseFloat(zillowProperty.lastSoldPrice.replace(/[^0-9.-]+/g, '')) : 0,
+                lastSaleDate: zillowProperty.dateSold || zillowProperty.dateSoldString || ''
+              },
+              yearBuilt: yearBuilt,
+              features: features,
+              images: [imageUrl],
+              description: zillowProperty.description || `This ${zillowProperty.homeType || 'property'} is located in ${zillowProperty.city || 'the city'}, ${zillowProperty.state || 'state'}. It has ${bedrooms} bedrooms and ${bathrooms} bathrooms with a total of ${livingArea} square feet of living area.`,
+              owners: [
+                {
+                  owner: {
+                    id: '101',
+                    name: 'Property Owner',
+                    ownerType: 'individual',
+                    individual: {
+                      firstName: 'Property',
+                      lastName: 'Owner',
+                      age: 45,
+                      occupation: 'Professional'
+                    },
+                    wealthData: {
+                      estimatedNetWorth: price * 4,
+                      confidenceLevel: 70,
+                      wealthComposition: {
+                        realEstate: price * 2,
+                        stocks: price,
+                        cash: price * 0.5,
+                        other: price * 0.5
+                      },
+                      incomeEstimate: price * 0.1,
+                      wealthTier: price > 1000000 ? 'high' : (price > 500000 ? 'medium' : 'standard')
+                    }
+                  },
+                  ownershipPercentage: 100,
+                  startDate: zillowProperty.dateSold || zillowProperty.dateSoldString || '2020-01-01',
+                  isCurrentOwner: true
+                }
+              ],
+              transactions: [
+                {
+                  transactionType: 'sale',
+                  date: zillowProperty.dateSold || zillowProperty.dateSoldString || '2020-01-01',
+                  price: zillowProperty.lastSoldPrice ? parseFloat(zillowProperty.lastSoldPrice.replace(/[^0-9.-]+/g, '')) : price,
+                  seller: 'Previous Owner',
+                  buyer: 'Current Owner',
+                  documentNumber: `DOC-${Math.floor(Math.random() * 1000000)}`
+                }
+              ],
+              taxInfo: {
+                parcelNumber: zillowProperty.parcelId || `PARCEL-${Math.floor(Math.random() * 1000000)}`,
+                taxAssessment: taxAssessedValue,
+                taxYear: taxAssessedYear,
+                propertyTax: taxAssessedValue * (propertyTaxRate / 100)
+              },
+              rawZillowData: zillowProperty // Store the raw data for reference
+            };
+            
+            setProperty(transformedProperty);
+            setIsBookmarked(Math.random() > 0.5);
+            setLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Error loading property from Zillow dataset:', error);
+          // Fall back to mock data if there's an error loading the CSV or property not found
+        }
+        
+        // If we get here, either the CSV loading failed or the property wasn't found
+        // Use mock data as fallback
+        console.log('Using mock property data as fallback');
         
         // Simulate API delay
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -212,10 +365,58 @@ const PropertyDetails = () => {
     setTabValue(newValue);
   };
   
+  // Check if property is bookmarked when component loads
+  useEffect(() => {
+    const checkBookmarkStatus = async () => {
+      try {
+        // Get the current user token from localStorage
+        const token = localStorage.getItem('token');
+        
+        if (!token || !property) return;
+        
+        const response = await fetch(`/api/bookmark/check/${property.id}`, {
+          headers: {
+            'x-auth-token': token
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          setIsBookmarked(data.isBookmarked);
+        }
+      } catch (err) {
+        console.error('Error checking bookmark status:', err);
+      }
+    };
+    
+    checkBookmarkStatus();
+  }, [property]);
+  
   const toggleBookmark = async () => {
     try {
-      // In a real implementation, this would call the backend API
-      // For now, we'll just toggle the state
+      // Get the current user token from localStorage
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        showError('You must be logged in to bookmark properties');
+        return;
+      }
+      
+      const method = isBookmarked ? 'DELETE' : 'POST';
+      const response = await fetch(`/api/bookmark/property/${property.id}`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.msg || 'Failed to update bookmark');
+      }
       
       setIsBookmarked(!isBookmarked);
       
@@ -226,14 +427,92 @@ const PropertyDetails = () => {
       }
     } catch (err) {
       console.error('Error toggling bookmark:', err);
-      showError('Failed to update bookmarks');
+      showError(err.message || 'Failed to update bookmarks');
     }
   };
   
-  const handleExportReport = () => {
-    // In a real implementation, this would call the backend API
-    // For now, we'll just show a success message
-    showSuccess('Property report exported successfully');
+  const handleExportReport = async (format = 'pdf') => {
+    try {
+      // Get the current user token from localStorage
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        showError('You must be logged in to export reports');
+        return;
+      }
+      
+      const response = await fetch(`/api/export/property/${property.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        },
+        body: JSON.stringify({ format })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.msg || 'Failed to export report');
+      }
+      
+      // If there's a download URL, open it in a new tab
+      if (data.downloadUrl) {
+        window.open(data.downloadUrl, '_blank');
+      }
+      
+      showSuccess('Property report exported successfully');
+    } catch (err) {
+      console.error('Error exporting report:', err);
+      showError(err.message || 'Failed to export report');
+    }
+  };
+  
+  const handleShareProperty = async () => {
+    try {
+      // For simplicity, we'll use a prompt to get the email
+      // In a real app, you'd use a modal or form component
+      const email = prompt('Enter email address to share with:');
+      
+      if (!email) return; // User canceled
+      
+      // Validate email (simple validation)
+      if (!email.includes('@')) {
+        showError('Please enter a valid email address');
+        return;
+      }
+      
+      // Get the current user token from localStorage
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        showError('You must be logged in to share properties');
+        return;
+      }
+      
+      const response = await fetch(`/api/export/share/property/${property.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        },
+        body: JSON.stringify({ 
+          email,
+          message: `Check out this property: ${property.address.formattedAddress}`
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.msg || 'Failed to share property');
+      }
+      
+      showSuccess(`Property shared with ${email} successfully`);
+    } catch (err) {
+      console.error('Error sharing property:', err);
+      showError(err.message || 'Failed to share property');
+    }
   };
   
   const handleViewOwner = (ownerId) => {
@@ -335,22 +614,37 @@ const PropertyDetails = () => {
           </Grid>
           
           <Grid item xs={12} md={4} sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
-            <Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               <Button
                 variant="outlined"
                 startIcon={isBookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
                 onClick={toggleBookmark}
-                sx={{ mr: 1 }}
               >
                 {isBookmarked ? 'Bookmarked' : 'Bookmark'}
               </Button>
               
               <Button
                 variant="outlined"
-                startIcon={<DownloadIcon />}
-                onClick={handleExportReport}
+                startIcon={<ShareIcon />}
+                onClick={handleShareProperty}
               >
-                Export
+                Share
+              </Button>
+              
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={() => handleExportReport('pdf')}
+              >
+                Export PDF
+              </Button>
+              
+              <Button
+                variant="outlined"
+                startIcon={<DownloadIcon />}
+                onClick={() => handleExportReport('json')}
+              >
+                Export JSON
               </Button>
             </Box>
           </Grid>

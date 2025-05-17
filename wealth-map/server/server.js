@@ -15,6 +15,11 @@ const employeeRoutes = require('./routes/employee');
 const propertyRoutes = require('./routes/property');
 const searchRoutes = require('./routes/search');
 const reportRoutes = require('./routes/report');
+const bookmarkRoutes = require('./routes/bookmark');
+const mapviewRoutes = require('./routes/mapview');
+const exportRoutes = require('./routes/export');
+const mfaRoutes = require('./routes/mfa');
+const profileRoutes = require('./routes/profile');
 
 // Initialize express app
 const app = express();
@@ -32,6 +37,11 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/properties', propertyRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/bookmark', bookmarkRoutes);
+app.use('/api/mapview', mapviewRoutes);
+app.use('/api/export', exportRoutes);
+app.use('/api/mfa', mfaRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Serve static assets if in production
 if (process.env.NODE_ENV === 'production') {

@@ -16,11 +16,15 @@ import PropertyDetails from './components/properties/PropertyDetails';
 import OwnerDetails from './components/owners/OwnerDetails';
 import SearchResults from './components/search/SearchResults';
 import Reports from './components/reports/Reports';
+import AlertDisplay from './components/layout/AlertDisplay';
 // All components are now implemented
 import CompanySettings from './components/settings/CompanySettings';
 import UserProfile from './components/settings/UserProfile';
+import ProfilePage from './components/profile/ProfilePage';
+import ChangePassword from './components/profile/ChangePassword';
 import EmployeeManagement from './components/admin/EmployeeManagement';
 import Onboarding from './components/onboarding/Onboarding';
+import MfaVerificationFixed from './components/auth/MfaVerificationFixed';
 
 // Context
 import { AuthProvider } from './context/AuthContext';
@@ -67,22 +71,33 @@ function App() {
       <AlertProvider>
         <AuthProvider>
           <Router>
+            {/* Wrap AlertDisplay in a div to isolate it from Router transitions */}
+            <div className="alert-container">
+              <AlertDisplay />
+            </div>
             <Routes>
               {/* Public Routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               
-              {/* Private Routes */}
-              <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+              {/* Root path - redirect to login if not authenticated */}
+              <Route path="/" element={
+                <PrivateRoute>
+                  <Dashboard />
+                </PrivateRoute>
+              } />
               <Route path="/map" element={<PrivateRoute><PropertyMap /></PrivateRoute>} />
               <Route path="/properties/:id" element={<PrivateRoute><PropertyDetails /></PrivateRoute>} />
               <Route path="/owners/:id" element={<PrivateRoute><OwnerDetails /></PrivateRoute>} />
               <Route path="/search" element={<PrivateRoute><SearchResults /></PrivateRoute>} />
               <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
               {/* User Routes */}
-              <Route path="/profile" element={<PrivateRoute><UserProfile /></PrivateRoute>} />
+              <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+              <Route path="/profile/old" element={<PrivateRoute><UserProfile /></PrivateRoute>} />
+              <Route path="/change-password" element={<PrivateRoute><ChangePassword /></PrivateRoute>} />
               <Route path="/onboarding" element={<PrivateRoute><Onboarding /></PrivateRoute>} />
+              <Route path="/mfa/verify" element={<MfaVerificationFixed />} />
               
               {/* Admin Routes */}
               <Route path="/admin/employees" element={<AdminRoute><EmployeeManagement /></AdminRoute>} />

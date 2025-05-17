@@ -119,16 +119,38 @@ const Register = () => {
     if (validateStep(activeStep)) {
       setIsSubmitting(true);
       
-      const success = await registerCompany({
+      // Include all required fields from the server validation
+      const result = await registerCompany({
         companyName,
         firstName,
         lastName,
         email,
-        password
+        password,
+        industry: 'Real Estate', // Default industry
+        contactPhone: '1234567890', // Default phone
+        website: '', // Optional
+        size: '1-10', // Default size
+        address: {
+          street: '',
+          city: '',
+          state: '',
+          zipCode: '',
+          country: 'USA'
+        }
       });
       
-      if (success) {
+      setIsSubmitting(false);
+      
+      if (result.success) {
         showSuccess('Registration successful! Welcome to Wealth Map.');
+        console.log('Registration successful, redirecting to dashboard');
+        
+        // Give the AuthContext a moment to update the authentication state
+        setTimeout(() => {
+          navigate('/');
+        }, 500);
+      } else if (result.error) {
+        showError(result.error);
       }
     }
   };

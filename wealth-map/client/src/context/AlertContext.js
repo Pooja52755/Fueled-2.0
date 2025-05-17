@@ -5,9 +5,12 @@ export const AlertContext = createContext();
 export const AlertProvider = ({ children }) => {
   const [alerts, setAlerts] = useState([]);
 
-  // Add alert
+  // Add alert with debounce to prevent excessive updates
   const addAlert = (message, type = 'info', timeout = 5000) => {
+    // Generate a unique ID for the alert
     const id = Math.random().toString(36).substring(2, 9);
+    
+    // Create the new alert object
     const newAlert = {
       id,
       message,
@@ -15,7 +18,19 @@ export const AlertProvider = ({ children }) => {
       timestamp: new Date()
     };
     
-    setAlerts(prevAlerts => [...prevAlerts, newAlert]);
+    // Use a function to update state to ensure we have the latest state
+    setAlerts(prevAlerts => {
+      // Check if a similar alert already exists to prevent duplicates
+      const similarAlert = prevAlerts.find(alert => 
+        alert.message === message && alert.type === type
+      );
+      
+      if (similarAlert) {
+        return prevAlerts; // Don't add duplicate alerts
+      }
+      
+      return [...prevAlerts, newAlert];
+    });
     
     // Auto remove alert after timeout
     if (timeout > 0) {

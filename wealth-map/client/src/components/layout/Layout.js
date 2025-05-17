@@ -38,10 +38,13 @@ const drawerWidth = 240;
 const Layout = ({ children, title }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useContext(AuthContext);
+  const { user, logout, isAuthenticated, loading } = useContext(AuthContext);
   
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  
+  // Log authentication state for debugging
+  console.log('Layout component - Auth state:', { isAuthenticated, user, loading });
   
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
